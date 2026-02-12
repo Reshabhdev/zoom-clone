@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from backend.app.routers import auth
+from backend.app.routers.auth import router as auth
 from backend.app.database.base import Base
 from backend.app.database.session import engine
 from fastapi import Depends
