@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 # Notice how all of these now start with 'backend.app'
 from backend.app.routers import auth
 from backend.app.database.base import Base
@@ -13,6 +14,20 @@ from backend.app.routers import websocket
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Zoom Clone Backend")
+
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://zoom-clone-nu-drab.vercel.app",
+        "https://*.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # We apply the "/auth" prefix here once to avoid confusion
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
