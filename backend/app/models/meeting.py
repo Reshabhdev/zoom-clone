@@ -10,7 +10,7 @@ class Meeting(Base):
     meeting_id = Column(String, unique=True, index=True) 
     title = Column(String, nullable=False)
     # Optional password for the room
-    hashed_password = Column(String, nullable=True) 
+    password = Column(String, nullable=True) 
     # Link to the User who created it
     host_id = Column(Integer, ForeignKey("users.id")) 
     is_active = Column(Boolean, default=True)

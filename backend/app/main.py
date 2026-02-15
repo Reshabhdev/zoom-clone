@@ -42,11 +42,13 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://zoom-clone-nu-drab.vercel.app",
+        "https://zoom-clone-*.vercel.app",
         "https://*.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 logger.info("✓ CORS middleware configured")
@@ -59,11 +61,3 @@ app.include_router(websocket.router)
 @app.get("/")
 def root():
     return {"status": "Backend running"}
-
-@app.get("/auth/me")
-def verify_my_token(current_user: User = Depends(get_current_user)):
-    return {
-        "status": "Token is valid",
-        "user_email": current_user.email,
-        "user_id": current_user.id
-    }

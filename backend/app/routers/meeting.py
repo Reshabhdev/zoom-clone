@@ -8,7 +8,6 @@ from backend.app.database.deps import get_db, get_current_user
 from backend.app.models.meeting import Meeting
 from backend.app.models.user import User
 from backend.app.schemas.meeting import MeetingCreate, MeetingOut, MeetingJoin
-from backend.app.core.security import get_password_hash, verify_password
 
 router = APIRouter()
 
@@ -29,8 +28,7 @@ def create_meeting(
         meeting_id=short_id,
         title=meeting_in.title,
         host_id=current_user.id,
-        # Hash the meeting password if provided, else store None
-        hashed_password=get_password_hash(meeting_in.password) if meeting_in.password else None
+        password=meeting_in.password if meeting_in.password else None
     )
     
     db.add(new_meeting)
@@ -57,14 +55,14 @@ def join_meeting(
         )
 
     # 2. If the meeting has a password, verify the provided one
-    if meeting.hashed_password:
+    if meeting.password:
         if not join_data.password:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, 
                 detail="This room requires a password"
             )
         
-        if not verify_password(join_data.password, meeting.hashed_password):
+        if join_data.password != meeting.password:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, 
                 detail="Incorrect meeting password"

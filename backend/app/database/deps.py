@@ -1,13 +1,16 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthCredentials
 from sqlalchemy.orm import Session
+import httpx
 
 from backend.app.database.session import SessionLocal
 from backend.app.models.user import User
-from backend.app.core.token import decode_access_token
+from backend.app.core.config import settings
 
-# The tokenUrl must match the login route path
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Use HTTP Bearer token scheme for Clerk authentication
+security = HTTPBearer()
+
+CLERK_API_BASE = "https://api.clerk.com/v1"
 
 def get_db():
     db = SessionLocal()
@@ -16,31 +19,68 @@ def get_db():
     finally:
         db.close()
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
-    payload = decode_access_token(token)
-    if payload is None:
+def get_clerk_user(credentials: HTTPAuthCredentials = Depends(security)):
+    """
+    Extract and validate Clerk token from Authorization header.
+    Returns the raw Clerk session data.
+    """
+    token = credentials.credentials
+    
+    try:
+        # Verify token with Clerk API
+        headers = {
+            "Authorization": f"Bearer {settings.CLERK_SECRET_KEY}"
+        }
+        
+        response = httpx.get(
+            f"{CLERK_API_BASE}/tokens/verify",
+            headers=headers,
+            params={"token": token}
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return response.json()
+    except httpx.RequestError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Could not verify token with Clerk",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Use 'sub' to match the key used in auth.py
-    email: str = payload.get("sub")
-    if email is None:
+def get_current_user(
+    clerk_user: dict = Depends(get_clerk_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get or create user in database based on Clerk authentication.
+    """
+    clerk_id = clerk_user.get("sub")
+    email = clerk_user.get("email")
+    
+    if not clerk_id or not email:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing user identity"
+            detail="Invalid token format"
         )
-
-    user = db.query(User).filter(User.email == email).first()
+    
+    # Get or create user in database
+    user = db.query(User).filter(User.clerk_id == clerk_id).first()
+    
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+        user = User(
+            clerk_id=clerk_id,
+            email=email,
+            first_name=clerk_user.get("given_name"),
+            last_name=clerk_user.get("family_name")
         )
-
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    
     return user
