@@ -1,17 +1,37 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Notice how all of these now start with 'backend.app'
-from backend.app.routers import auth
-from backend.app.database.base import Base
-from backend.app.database.session import engine
-from backend.app.database.deps import get_current_user
-from backend.app.models.user import User
-from backend.app.models.meeting import Meeting 
-from backend.app.routers import meeting
-from backend.app.routers import websocket
+try:
+    from backend.app.routers import auth
+    from backend.app.database.base import Base
+    from backend.app.database.session import engine
+    from backend.app.database.deps import get_current_user
+    from backend.app.models.user import User
+    from backend.app.models.meeting import Meeting 
+    from backend.app.routers import meeting
+    from backend.app.routers import websocket
+    from backend.app.core.config import settings
+    
+    logger.info("✓ All imports successful")
+    logger.info(f"Database URL configured: {bool(settings.DATABASE_URL)}")
+    
+except Exception as e:
+    logger.error(f"✗ Import error: {e}")
+    raise
 
 # This command creates tables only if they don't exist
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("✓ Database tables created/verified")
+except Exception as e:
+    logger.error(f"✗ Database initialization error: {e}")
+    raise
 
 app = FastAPI(title="Zoom Clone Backend")
 
@@ -28,6 +48,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+logger.info("✓ CORS middleware configured")
 
 # We apply the "/auth" prefix here once to avoid confusion
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
