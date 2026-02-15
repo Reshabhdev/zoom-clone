@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import httpx
 
@@ -19,7 +19,8 @@ def get_db():
     finally:
         db.close()
 
-def get_clerk_user(credentials: HTTPAuthCredentials = Depends(security)):
+# ✅ Fixed the type hint right here:
+def get_clerk_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
     Extract and validate Clerk token from Authorization header.
     Returns the raw Clerk session data.
