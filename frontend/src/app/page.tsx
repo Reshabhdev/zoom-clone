@@ -1,5 +1,6 @@
 "use client";
-import { useUser } from "@clerk/nextjs";
+// 1. We imported useAuth here
+import { useUser, useAuth } from "@clerk/nextjs";
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Camera, VideoOff, ArrowRight, Plus, Monitor } from 'lucide-react';
@@ -7,6 +8,9 @@ import { apiFetch } from '@/lib/api';
 
 export default function Lobby() {
   const { isLoaded, isSignedIn, user } = useUser();
+  // 2. We extract the getToken function from Clerk
+  const { getToken } = useAuth(); 
+  
   const router = useRouter();
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [meetingId, setMeetingId] = useState("");
@@ -37,9 +41,16 @@ export default function Lobby() {
     
     setLoading(true);
     try {
-      // Calls your FastAPI backend to check if meeting exists
+      // 3. Grab the token right before making the request
+      const token = await getToken();
+
       await apiFetch("/meetings/join", {
         method: "POST",
+        // 4. Inject the token into the headers
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ meeting_id: meetingId })
       });
       
@@ -53,8 +64,16 @@ export default function Lobby() {
 
   const handleCreateMeeting = async () => {
     try {
+      // 5. Grab the token here as well
+      const token = await getToken();
+
       const data = await apiFetch("/meetings/create", {
         method: "POST",
+        // 6. Inject the token into the headers
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ title: "Instant Meeting" })
       });
       router.push(`/room/${data.meeting_id}`);
@@ -106,7 +125,7 @@ export default function Lobby() {
         <div className="flex flex-col space-y-10">
           <div>
             <h1 className="text-5xl font-extrabold tracking-tight mb-4 bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
-              Hello, {user.firstName}!
+              Hello, {user?.firstName}!
             </h1>
             <p className="text-slate-400 text-xl max-w-md">
               Enter a code to join a meeting, or start a new one instantly.
