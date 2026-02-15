@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from backend.app.models.user import User
-from backend.app.database.deps import get_current_user
-from backend.app.schemas.user import UserResponse
+from ..models.user import User
+from ..database.deps import get_current_user
+from ..schemas.user import UserResponse
 
 # Prefix is handled in main.py to keep this file flexible
 router = APIRouter()

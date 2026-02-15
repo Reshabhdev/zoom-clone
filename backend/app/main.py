@@ -6,17 +6,16 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Notice how all of these now start with 'backend.app'
 try:
-    from backend.app.routers import auth
-    from backend.app.database.base import Base
-    from backend.app.database.session import engine
-    from backend.app.database.deps import get_current_user
-    from backend.app.models.user import User
-    from backend.app.models.meeting import Meeting 
-    from backend.app.routers import meeting
-    from backend.app.routers import websocket
-    from backend.app.core.config import settings
+    from .routers import auth
+    from .database.base import Base
+    from .database.session import engine
+    from .database.deps import get_current_user
+    from .models.user import User
+    from .models.meeting import Meeting 
+    from .routers import meeting
+    from .routers import websocket
+    from .core.config import settings
     
     logger.info("✓ All imports successful")
     logger.info(f"Database URL configured: {bool(settings.DATABASE_URL)}")

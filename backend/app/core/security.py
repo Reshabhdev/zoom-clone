@@ -1,6 +1,6 @@
 import httpx
 from typing import Optional, Dict, Any
-from backend.app.core.config import settings
+from .config import settings
 
 # Clerk API endpoints
 CLERK_API_BASE = "https://api.clerk.com/v1"

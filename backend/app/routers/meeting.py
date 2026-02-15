@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 # Internal imports
-from backend.app.database.deps import get_db, get_current_user
-from backend.app.models.meeting import Meeting
-from backend.app.models.user import User
-from backend.app.schemas.meeting import MeetingCreate, MeetingOut, MeetingJoin
+from ..database.deps import get_db, get_current_user
+from ..models.meeting import Meeting
+from ..models.user import User
+from ..schemas.meeting import MeetingCreate, MeetingOut, MeetingJoin
 
 router = APIRouter()
 

@@ -1,1 +1,1 @@
-from backend.app.models.user import User
+from .user import User

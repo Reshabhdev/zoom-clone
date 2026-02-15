@@ -3,9 +3,9 @@ from fastapi.security import HTTPBearer, HTTPAuthCredentials
 from sqlalchemy.orm import Session
 import httpx
 
-from backend.app.database.session import SessionLocal
-from backend.app.models.user import User
-from backend.app.core.config import settings
+from .session import SessionLocal
+from ..models.user import User
+from ..core.config import settings
 
 # Use HTTP Bearer token scheme for Clerk authentication
 security = HTTPBearer()
