@@ -20,6 +20,17 @@ export default function Lobby() {
   // Wait for Clerk to load auth state
   if (!isLoaded || !isSignedIn) return null;
 
+  // Store the token in localStorage whenever user is signed in
+  if (isSignedIn) {
+    getToken().then((token) => {
+      if (token) {
+        localStorage.setItem("token", token);
+      }
+    }).catch((err) => {
+      console.error("Error getting token from Clerk:", err);
+    });
+  }
+
   const toggleCamera = async () => {
     if (!isCameraOn) {
       try {
@@ -41,16 +52,14 @@ export default function Lobby() {
     
     setLoading(true);
     try {
-      // 3. Grab the token right before making the request
+      // 3. Grab the token and store it in localStorage
       const token = await getToken();
+      if (token) {
+        localStorage.setItem("token", token);
+      }
 
       await apiFetch("/meetings/join", {
         method: "POST",
-        // 4. Inject the token into the headers
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
         body: JSON.stringify({ meeting_id: meetingId })
       });
       
@@ -64,16 +73,14 @@ export default function Lobby() {
 
   const handleCreateMeeting = async () => {
     try {
-      // 5. Grab the token here as well
+      // 5. Grab the token and store it in localStorage
       const token = await getToken();
+      if (token) {
+        localStorage.setItem("token", token);
+      }
 
       const data = await apiFetch("/meetings/create", {
         method: "POST",
-        // 6. Inject the token into the headers
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
         body: JSON.stringify({ title: "Instant Meeting" })
       });
       router.push(`/room/${data.meeting_id}`);
