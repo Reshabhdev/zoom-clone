@@ -21,6 +21,36 @@ def get_db():
 
 # ✅ Fixed the type hint right here:
 def get_clerk_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    
+    try:
+        # Instead of /tokens/verify, use the /users/me or a direct session check
+        # Many developers use the 'v1/client' or 'v1/sessions' to verify
+        headers = {
+            "Authorization": f"Bearer {token}" # Use the USER'S token here
+        }
+        
+        # Verify by trying to get the user's own data from Clerk
+        response = httpx.get(
+            f"{CLERK_API_BASE}/me", 
+            headers=headers
+        )
+        
+        if response.status_code != 200:
+            # Check Render logs for this specific detail
+            print(f"Clerk Error: {response.text}") 
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
+        
+        return response.json()
+    except httpx.RequestError as e:
+        print(f"Request Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not verify token with Clerk",
+        )
     """
     Extract and validate Clerk token from Authorization header.
     Returns the raw Clerk session data.
