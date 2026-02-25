@@ -20,17 +20,6 @@ export default function Lobby() {
   // Wait for Clerk to load auth state
   if (!isLoaded || !isSignedIn) return null;
 
-  // Store the token in localStorage whenever user is signed in
-  if (isSignedIn) {
-    getToken().then((token) => {
-      if (token) {
-        localStorage.setItem("token", token);
-      }
-    }).catch((err) => {
-      console.error("Error getting token from Clerk:", err);
-    });
-  }
-
   const toggleCamera = async () => {
     if (!isCameraOn) {
       try {
@@ -52,7 +41,7 @@ export default function Lobby() {
     
     setLoading(true);
     try {
-      // 3. Grab the token and store it in localStorage
+      // Grab a fresh token from Clerk and pass it directly
       const token = await getToken();
       if (token) {
         localStorage.setItem("token", token);
@@ -61,7 +50,7 @@ export default function Lobby() {
       await apiFetch("/meetings/join", {
         method: "POST",
         body: JSON.stringify({ meeting_id: meetingId })
-      });
+      }, token);
       
       router.push(`/room/${meetingId}`);
     } catch (err: any) {
@@ -73,7 +62,7 @@ export default function Lobby() {
 
   const handleCreateMeeting = async () => {
     try {
-      // 5. Grab the token and store it in localStorage
+      // Grab a fresh token from Clerk and pass it directly
       const token = await getToken();
       if (token) {
         localStorage.setItem("token", token);
@@ -82,7 +71,7 @@ export default function Lobby() {
       const data = await apiFetch("/meetings/create", {
         method: "POST",
         body: JSON.stringify({ title: "Instant Meeting" })
-      });
+      }, token);
       router.push(`/room/${data.meeting_id}`);
     } catch (err: any) {
       alert("Failed to create meeting: " + err.message);

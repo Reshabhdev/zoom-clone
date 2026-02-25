@@ -1,21 +1,26 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-
-export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
-  // Pull the token from storage
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+/**
+ * API fetch helper — routes all backend requests through the Next.js API proxy
+ * at /api/[...path] to avoid CORS issues entirely. The proxy runs server-side
+ * and forwards requests to the Python backend.
+ */
+export const apiFetch = async (endpoint: string, options: RequestInit = {}, token?: string | null) => {
+  // Use token passed as argument, or fall back to localStorage
+  const authToken = token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  // If token exists, add it to Authorization header
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
   }
 
+  // Route through the Next.js API proxy (same-origin, no CORS issues)
+  const url = `/api${endpoint}`;
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(url, {
       ...options,
       headers,
     });
@@ -32,14 +37,9 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
     return response.json();
   } catch (err: any) {
-    // Log CORS or network errors for debugging
     if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      console.error('Fetch Error: Check CORS settings and API URL:', {
-        apiUrl: API_BASE_URL,
-        endpoint: endpoint,
-        error: err.message
-      });
-      throw new Error(`Cannot reach backend at ${API_BASE_URL}. Check CORS and network connection.`);
+      console.error('Fetch Error:', { url, error: err.message });
+      throw new Error(`Network error. Please check your connection.`);
     }
     throw err;
   }

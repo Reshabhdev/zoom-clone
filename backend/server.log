@@ -1,0 +1,10 @@
+INFO:     Will watch for changes in these directories: ['/Users/rishabhdevsingh/Documents/Python workspace/zoom clone/backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [20790] using WatchFiles
+INFO:app.main:✓ All imports successful
+INFO:app.main:Database URL configured: True
+INFO:app.main:✓ Database tables created/verified
+INFO:app.main:✓ CORS middleware configured
+INFO:     Started server process [20793]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

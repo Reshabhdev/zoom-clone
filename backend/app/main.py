@@ -7,15 +7,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 try:
-    from .routers import auth
-    from .database.base import Base
-    from .database.session import engine
-    from .database.deps import get_current_user
-    from .models.user import User
-    from .models.meeting import Meeting 
-    from .routers import meeting
-    from .routers import websocket
-    from .core.config import settings
+    from app.routers import auth
+    from app.database.base import Base
+    from app.database.session import engine
+    from app.database.deps import get_current_user
+    from app.models.user import User
+    from app.models.meeting import Meeting 
+    from app.routers import meeting
+    from app.routers import websocket
+    from app.core.config import settings
     
     logger.info("✓ All imports successful")
     logger.info(f"Database URL configured: {bool(settings.DATABASE_URL)}")
@@ -40,6 +40,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
         "https://zoom-clone-nu-drab.vercel.app",
         "https://zoom-clone-*.vercel.app",
         "https://*.vercel.app"
