@@ -17,6 +17,9 @@ async function proxyRequest(
     const authHeader = request.headers.get("Authorization");
     if (authHeader) {
         headers["Authorization"] = authHeader;
+        console.log(`[proxy] Auth header present. Length: ${authHeader.length}, Preview: ${authHeader.substring(0, 15)}...`);
+    } else {
+        console.log(`[proxy] No Auth header present in request.`);
     }
 
     // Only set Content-Type for methods that have a body

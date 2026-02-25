@@ -7,7 +7,7 @@ export default function MeetingRoom() {
   const params = useParams();
   const router = useRouter();
   const roomId = params.id;
-  
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
@@ -25,9 +25,9 @@ export default function MeetingRoom() {
   useEffect(() => {
     async function startMeeting() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
         });
         streamRef.current = stream;
         if (localVideoRef.current) {
@@ -80,7 +80,7 @@ export default function MeetingRoom() {
           </div>
           <span className="font-medium">Meeting: <span className="text-blue-400">{roomId}</span></span>
         </div>
-        
+
         {/* Share Button */}
         <button
           onClick={() => setShowShareModal(true)}
@@ -94,12 +94,12 @@ export default function MeetingRoom() {
       {/* Main Video Area */}
       <div className="flex-grow flex items-center justify-center p-6 gap-4">
         <div className="relative w-full max-w-3xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-          <video 
-            ref={localVideoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            className="w-full h-full object-cover scale-x-[-1]" 
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover scale-x-[-1]"
           />
           <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-md text-sm backdrop-blur-md">
             You (Local)
@@ -109,21 +109,21 @@ export default function MeetingRoom() {
 
       {/* Control Bar */}
       <div className="p-8 flex justify-center items-center gap-6 bg-zinc-950 border-t border-zinc-900">
-        <button 
+        <button
           onClick={() => setIsMicOn(!isMicOn)}
           className={`p-4 rounded-full transition ${isMicOn ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-red-600 hover:bg-red-500'}`}
         >
           {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
-        
-        <button 
+
+        <button
           onClick={() => setIsCamOn(!isCamOn)}
           className={`p-4 rounded-full transition ${isCamOn ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-red-600 hover:bg-red-500'}`}
         >
           {isCamOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
 
-        <button 
+        <button
           onClick={leaveMeeting}
           className="p-4 bg-red-600 hover:bg-red-700 rounded-full transition-all hover:scale-110 active:scale-90"
         >
@@ -185,8 +185,8 @@ export default function MeetingRoom() {
                 <Copy size={20} />
                 {copied ? "Link Copied!" : "Copy Link"}
               </button>
-              
-              {navigator.share && (
+
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
                 <button
                   onClick={shareViaWeb}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
@@ -195,7 +195,7 @@ export default function MeetingRoom() {
                   Share via...
                 </button>
               )}
-              
+
               <button
                 onClick={() => setShowShareModal(false)}
                 className="w-full bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-3 px-4 rounded-lg transition-all"
