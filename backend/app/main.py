@@ -7,15 +7,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 try:
-    from app.routers import auth
-    from app.database.base import Base
-    from app.database.session import engine
-    from app.database.deps import get_current_user
-    from app.models.user import User
-    from app.models.meeting import Meeting 
-    from app.routers import meeting
-    from app.routers import websocket
-    from app.core.config import settings
+    from backend.app.routers import auth
+    from backend.app.database.base import Base
+    from backend.app.database.session import engine
+    from backend.app.database.deps import get_current_user
+    from backend.app.models.user import User
+    from backend.app.models.meeting import Meeting 
+    from backend.app.routers import meeting
+    from backend.app.routers import websocket
+    from backend.app.core.config import settings
     
     logger.info("✓ All imports successful")
     logger.info(f"Database URL configured: {bool(settings.DATABASE_URL)}")

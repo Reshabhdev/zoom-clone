@@ -3,13 +3,12 @@
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 
-from app.database.session import SessionLocal, engine
-from app.database.base import Base
-from app.models.user import User
-from app.models.meeting import Meeting
-from app.core.utils import generate_meeting_credentials
+from backend.app.database.session import SessionLocal, engine
+from backend.app.database.base import Base
+from backend.app.models.user import User
+from backend.app.models.meeting import Meeting
+from backend.app.core.utils import generate_meeting_credentials
 import uuid
 
 def test_meeting_creation():
