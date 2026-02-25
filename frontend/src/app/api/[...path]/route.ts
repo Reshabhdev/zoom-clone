@@ -25,11 +25,14 @@ async function proxyRequest(
     }
 
     try {
-        const fetchOptions: RequestInit = { method, headers };
+        const fetchOptions: RequestInit = { method, headers, cache: "no-store" };
 
         // Read body for POST/PUT/PATCH
         if (method === "POST" || method === "PUT" || method === "PATCH") {
-            fetchOptions.body = await request.text();
+            const bodyText = await request.text();
+            if (bodyText) {
+                fetchOptions.body = bodyText;
+            }
         }
 
         console.log(`[proxy] ${method} ${url}`);
@@ -52,6 +55,10 @@ async function proxyRequest(
         }
     } catch (err: any) {
         console.error(`[proxy] Connection error for ${method} ${url}:`, err.message);
+        console.error(`[proxy] Error cause:`, err.cause);
+        if (err.cause) {
+            console.error(`[proxy] Error cause details:`, JSON.stringify(err.cause, Object.getOwnPropertyNames(err.cause)));
+        }
         return NextResponse.json(
             { detail: `Backend unreachable at ${BACKEND_URL}: ${err.message}` },
             { status: 502 }
