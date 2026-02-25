@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // IMPORTANT: Use 127.0.0.1 (not "localhost") because macOS resolves localhost
 // to IPv6 [::1] first, and uvicorn only listens on IPv4 by default.
-// In production, env vars like NEXT_PUBLIC_API_BASE_URL will be used.
-const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 async function proxyRequest(
     request: NextRequest,
