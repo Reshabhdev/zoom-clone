@@ -1,4 +1,5 @@
 import uuid
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,34 +8,97 @@ from sqlalchemy.orm import Session
 from ..database.deps import get_db, get_current_user
 from ..models.meeting import Meeting
 from ..models.user import User
-from ..schemas.meeting import MeetingCreate, MeetingOut, MeetingJoin
+from ..schemas.meeting import (
+    MeetingCreate, 
+    MeetingOut, 
+    MeetingJoin,
+    MeetingCreateResponse,
+    InvitationDetails
+)
+from ..core.utils import generate_meeting_credentials
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/create", response_model=MeetingOut)
+@router.post("/create", response_model=MeetingCreateResponse)
 def create_meeting(
     meeting_in: MeetingCreate, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Generates a unique 9-digit meeting ID and saves meeting details to the DB.
+    Creates a new meeting with:
+    - Auto-generated 6-digit numeric password
+    - Unique invitation token for shareable link
+    - 9-digit meeting ID (format: xxx-xxx-xxx)
     """
-    # Generate unique ID (format: xxx-xxx-xxx)
-    raw_uuid = str(uuid.uuid4()).replace("-", "")
-    short_id = f"{raw_uuid[:3]}-{raw_uuid[3:6]}-{raw_uuid[6:9]}"
+    try:
+        # Generate unique ID (format: xxx-xxx-xxx)
+        raw_uuid = str(uuid.uuid4()).replace("-", "")
+        short_id = f"{raw_uuid[:3]}-{raw_uuid[3:6]}-{raw_uuid[6:9]}"
 
-    new_meeting = Meeting(
-        meeting_id=short_id,
-        title=meeting_in.title,
-        host_id=current_user.id,
-        password=meeting_in.password if meeting_in.password else None
-    )
+        # Generate password and invitation token
+        password, invitation_token = generate_meeting_credentials()
+
+        logger.info(f"Creating meeting: id={short_id}, title={meeting_in.title}, host_id={current_user.id}")
+
+        new_meeting = Meeting(
+            meeting_id=short_id,
+            title=meeting_in.title,
+            host_id=current_user.id,
+            password=password,
+            invitation_token=invitation_token
+        )
+        
+        db.add(new_meeting)
+        db.commit()
+        db.refresh(new_meeting)
+        
+        logger.info(f"Meeting created successfully: {new_meeting.meeting_id}")
+        
+        return {
+            "meeting_id": new_meeting.meeting_id,
+            "title": new_meeting.title,
+            "password": new_meeting.password,
+            "invitation_token": new_meeting.invitation_token,
+            "created_at": new_meeting.created_at
+        }
+    except Exception as e:
+        logger.error(f"Error creating meeting: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create meeting: {str(e)}"
+        )
+
+@router.get("/invitation/{invitation_token}", response_model=InvitationDetails)
+def get_invitation_details(
+    invitation_token: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retrieve meeting details using the invitation token.
+    This is used when sharing the invitation link.
+    """
+    meeting = db.query(Meeting).filter(
+        Meeting.invitation_token == invitation_token
+    ).first()
     
-    db.add(new_meeting)
-    db.commit()
-    db.refresh(new_meeting)
-    return new_meeting
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation link not found or expired"
+        )
+    
+    if not meeting.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This meeting has ended"
+        )
+    
+    return meeting
 
 @router.post("/join")
 def join_meeting(
@@ -43,9 +107,9 @@ def join_meeting(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Verifies the meeting ID exists and checks the password if required.
+    Verify meeting ID and password before allowing join.
     """
-    # 1. Search for the meeting by the custom ID
+    # Search for the meeting by the custom ID
     meeting = db.query(Meeting).filter(Meeting.meeting_id == join_data.meeting_id).first()
     
     if not meeting:
@@ -54,21 +118,14 @@ def join_meeting(
             detail="Meeting room not found"
         )
 
-    # 2. If the meeting has a password, verify the provided one
-    if meeting.password:
-        if not join_data.password:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, 
-                detail="This room requires a password"
-            )
-        
-        if join_data.password != meeting.password:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, 
-                detail="Incorrect meeting password"
-            )
+    # Verify the password
+    if join_data.password != meeting.password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Incorrect meeting password"
+        )
 
-    # 3. Success response
+    # Success response
     return {
         "status": "success",
         "message": f"Successfully joined {meeting.title}",
