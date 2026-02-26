@@ -40,6 +40,7 @@ export default function MeetingRoom() {
 
   const streamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<{ [key: string]: RTCPeerConnection }>({});
+  const pendingCandidates = useRef<{ [key: string]: RTCIceCandidateInit[] }>({});
   const wsRef = useRef<WebSocket | null>(null);
   const localUserId = useRef(Math.random().toString(36).substring(7)).current;
 
@@ -100,6 +101,16 @@ export default function MeetingRoom() {
               break;
 
             case "offer":
+              const existingPc = peersRef.current[data.senderId];
+              const collision = existingPc && existingPc.signalingState !== "stable";
+              const polite = localUserId < data.senderId;
+
+              if (collision && !polite) {
+                // Ignore the offer! We are not polite, so our offer wins. 
+                // The other side will process our offer.
+                return;
+              }
+
               const pcReceive = createPeerConnection(data.senderId, stream);
               await pcReceive.setRemoteDescription(new RTCSessionDescription(data.sdp));
               const answer = await pcReceive.createAnswer();
@@ -110,17 +121,52 @@ export default function MeetingRoom() {
                 targetId: data.senderId,
                 sdp: answer
               }));
+
+              if (pendingCandidates.current[data.senderId]) {
+                for (const candidate of pendingCandidates.current[data.senderId]) {
+                  try {
+                    await pcReceive.addIceCandidate(new RTCIceCandidate(candidate));
+                  } catch (e) {
+                    console.error("Error adding queued ice candidate", e);
+                  }
+                }
+                delete pendingCandidates.current[data.senderId];
+              }
               break;
 
             case "answer":
               if (peersRef.current[data.senderId]) {
-                await peersRef.current[data.senderId].setRemoteDescription(new RTCSessionDescription(data.sdp));
+                const pcAns = peersRef.current[data.senderId];
+                await pcAns.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+                if (pendingCandidates.current[data.senderId]) {
+                  for (const candidate of pendingCandidates.current[data.senderId]) {
+                    try {
+                      await pcAns.addIceCandidate(new RTCIceCandidate(candidate));
+                    } catch (e) {
+                      console.error("Error adding queued ice candidate", e);
+                    }
+                  }
+                  delete pendingCandidates.current[data.senderId];
+                }
               }
               break;
 
             case "ice-candidate":
               if (peersRef.current[data.senderId] && data.candidate) {
-                await peersRef.current[data.senderId].addIceCandidate(new RTCIceCandidate(data.candidate));
+                const pcIce = peersRef.current[data.senderId];
+                if (pcIce.remoteDescription) {
+                  try {
+                    await pcIce.addIceCandidate(new RTCIceCandidate(data.candidate));
+                  } catch (e) {
+                    console.error("Error adding ice candidate", e);
+                  }
+                } else {
+                  if (!pendingCandidates.current[data.senderId]) {
+                    pendingCandidates.current[data.senderId] = [];
+                  }
+                  pendingCandidates.current[data.senderId].push(data.candidate);
+                }
               }
               break;
           }
@@ -141,6 +187,9 @@ export default function MeetingRoom() {
   }, [roomId, localUserId]);
 
   const createPeerConnection = (partnerId: string, stream: MediaStream | null) => {
+    if (peersRef.current[partnerId]) {
+      peersRef.current[partnerId].close();
+    }
     const pc = new RTCPeerConnection(STUN_SERVERS);
     peersRef.current[partnerId] = pc;
 
