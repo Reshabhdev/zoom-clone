@@ -3,27 +3,54 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Users, Share2, Copy, Check, X } from "lucide-react";
 
+const STUN_SERVERS = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" }
+  ],
+};
+
+const RemoteVideo = ({ stream }: { stream: MediaStream }) => {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current && stream) {
+      ref.current.srcObject = stream;
+    }
+  }, [stream]);
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      className="w-full h-full object-cover"
+    />
+  );
+};
+
 export default function MeetingRoom() {
   const params = useParams();
   const router = useRouter();
-  const roomId = params.id;
+  const roomId = params.id as string;
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<{ [key: string]: MediaStream }>({});
 
-  // Build the invitation link (you'll need to get invitation_token from backend)
+  const streamRef = useRef<MediaStream | null>(null);
+  const peersRef = useRef<{ [key: string]: RTCPeerConnection }>({});
+  const wsRef = useRef<WebSocket | null>(null);
+  const localUserId = useRef(Math.random().toString(36).substring(7)).current;
+
+  // Build the invitation link
   const getInvitationLink = () => {
-    // For now, using meeting ID - in production, you'd get the invitation_token from the meeting creation
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
     return `${baseUrl}/join/${roomId}`;
   };
 
   useEffect(() => {
-    async function startMeeting() {
+    const initMeeting = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -33,17 +60,134 @@ export default function MeetingRoom() {
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-      } catch (err) {
-        console.error("Error accessing media devices:", err);
-      }
-    }
-    startMeeting();
 
-    // Cleanup when leaving the room
+        const wsUrl = process.env.NEXT_PUBLIC_WS_URL ||
+          (typeof window !== "undefined" && window.location.hostname === "localhost"
+            ? `ws://localhost:8000/ws/${roomId}`
+            : `wss://${window.location.hostname}/ws/${roomId}`);
+
+        wsRef.current = new WebSocket(wsUrl);
+
+        wsRef.current.onopen = () => {
+          wsRef.current?.send(JSON.stringify({ type: "join", senderId: localUserId }));
+        };
+
+        wsRef.current.onmessage = async (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.targetId && data.targetId !== localUserId) return;
+
+          switch (data.type) {
+            case "join":
+              const pc = createPeerConnection(data.senderId, stream);
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              wsRef.current?.send(JSON.stringify({
+                type: "offer",
+                senderId: localUserId,
+                targetId: data.senderId,
+                sdp: offer
+              }));
+              break;
+
+            case "offer":
+              const pcReceive = createPeerConnection(data.senderId, stream);
+              await pcReceive.setRemoteDescription(new RTCSessionDescription(data.sdp));
+              const answer = await pcReceive.createAnswer();
+              await pcReceive.setLocalDescription(answer);
+              wsRef.current?.send(JSON.stringify({
+                type: "answer",
+                senderId: localUserId,
+                targetId: data.senderId,
+                sdp: answer
+              }));
+              break;
+
+            case "answer":
+              if (peersRef.current[data.senderId]) {
+                await peersRef.current[data.senderId].setRemoteDescription(new RTCSessionDescription(data.sdp));
+              }
+              break;
+
+            case "ice-candidate":
+              if (peersRef.current[data.senderId] && data.candidate) {
+                await peersRef.current[data.senderId].addIceCandidate(new RTCIceCandidate(data.candidate));
+              }
+              break;
+          }
+        };
+
+      } catch (err) {
+        console.error("Error accessing media devices or connecting WebRTC:", err);
+      }
+    };
+
+    initMeeting();
+
     return () => {
       streamRef.current?.getTracks().forEach(track => track.stop());
+      wsRef.current?.close();
+      Object.values(peersRef.current).forEach(pc => pc.close());
     };
-  }, []);
+  }, [roomId, localUserId]);
+
+  const createPeerConnection = (partnerId: string, stream: MediaStream) => {
+    const pc = new RTCPeerConnection(STUN_SERVERS);
+    peersRef.current[partnerId] = pc;
+
+    stream.getTracks().forEach(track => {
+      pc.addTrack(track, stream);
+    });
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        wsRef.current?.send(JSON.stringify({
+          type: "ice-candidate",
+          senderId: localUserId,
+          targetId: partnerId,
+          candidate: event.candidate
+        }));
+      }
+    };
+
+    pc.ontrack = (event) => {
+      setRemoteStreams(prev => ({
+        ...prev,
+        [partnerId]: event.streams[0]
+      }));
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed" || pc.iceConnectionState === "closed") {
+        setRemoteStreams(prev => {
+          const newStreams = { ...prev };
+          delete newStreams[partnerId];
+          return newStreams;
+        });
+        delete peersRef.current[partnerId];
+      }
+    };
+
+    return pc;
+  };
+
+  const toggleMic = () => {
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach(track => {
+        track.enabled = !isMicOn;
+      });
+      setIsMicOn(!isMicOn);
+    }
+  };
+
+  const toggleCam = () => {
+    if (streamRef.current) {
+      streamRef.current.getVideoTracks().forEach(track => {
+        track.enabled = !isCamOn;
+      });
+      setIsCamOn(!isCamOn);
+    }
+  };
 
   const leaveMeeting = () => {
     router.push("/");
@@ -70,6 +214,16 @@ export default function MeetingRoom() {
     }
   };
 
+  // Compute grid sizing based on participant count (local + remote)
+  const participantCount = 1 + Object.keys(remoteStreams).length;
+  const gridClass = participantCount === 1
+    ? "grid-cols-1 max-w-4xl"
+    : participantCount === 2
+      ? "grid-cols-1 md:grid-cols-2 max-w-6xl"
+      : participantCount <= 4
+        ? "grid-cols-2 max-w-6xl"
+        : "grid-cols-2 md:grid-cols-3 max-w-7xl";
+
   return (
     <div className="flex flex-col h-screen bg-black text-white">
       {/* Top Bar */}
@@ -92,33 +246,46 @@ export default function MeetingRoom() {
       </div>
 
       {/* Main Video Area */}
-      <div className="flex-grow flex items-center justify-center p-6 gap-4">
-        <div className="relative w-full max-w-3xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover scale-x-[-1]"
-          />
-          <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-md text-sm backdrop-blur-md">
-            You (Local)
+      <div className="flex-grow flex items-center justify-center p-6 overflow-hidden">
+        <div className={`grid gap-4 w-full h-full max-h-full items-center justify-center content-center ${gridClass}`}>
+          {/* Local Video */}
+          <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover scale-x-[-1]"
+            />
+            <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-md text-sm backdrop-blur-md">
+              You
+            </div>
           </div>
+
+          {/* Remote Videos */}
+          {Object.entries(remoteStreams).map(([id, stream]) => (
+            <div key={id} className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+              <RemoteVideo stream={stream} />
+              <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-md text-sm backdrop-blur-md">
+                Participant {id.substring(0, 4)}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Control Bar */}
       <div className="p-8 flex justify-center items-center gap-6 bg-zinc-950 border-t border-zinc-900">
         <button
-          onClick={() => setIsMicOn(!isMicOn)}
-          className={`p-4 rounded-full transition ${isMicOn ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-red-600 hover:bg-red-500'}`}
+          onClick={toggleMic}
+          className={`p-4 rounded-full transition ${isMicOn ? "bg-zinc-800 hover:bg-zinc-700" : "bg-red-600 hover:bg-red-500"}`}
         >
           {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
 
         <button
-          onClick={() => setIsCamOn(!isCamOn)}
-          className={`p-4 rounded-full transition ${isCamOn ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-red-600 hover:bg-red-500'}`}
+          onClick={toggleCam}
+          className={`p-4 rounded-full transition ${isCamOn ? "bg-zinc-800 hover:bg-zinc-700" : "bg-red-600 hover:bg-red-500"}`}
         >
           {isCamOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
@@ -186,7 +353,7 @@ export default function MeetingRoom() {
                 {copied ? "Link Copied!" : "Copy Link"}
               </button>
 
-              {typeof navigator !== 'undefined' && 'share' in navigator && (
+              {typeof navigator !== "undefined" && "share" in navigator && (
                 <button
                   onClick={shareViaWeb}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
