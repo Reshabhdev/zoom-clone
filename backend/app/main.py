@@ -35,12 +35,18 @@ try:
     
     # Run Alembic migrations automatically
     logger.info("Running database migrations...")
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    backend_dir = os.path.dirname(os.path.dirname(current_dir))
+    current_dir = os.path.dirname(os.path.abspath(__file__)) # this is backend/app
+    backend_dir = os.path.dirname(current_dir) # this is backend
+    
     alembic_ini_path = os.path.join(backend_dir, "alembic.ini")
+    alembic_script_location = os.path.join(backend_dir, "alembic")
+    
+    # Optional: check if paths exist and log them to help debug in production
+    if not os.path.exists(alembic_script_location):
+        logger.warning(f"Alembic script location not found at {alembic_script_location}")
     
     alembic_cfg = Config(alembic_ini_path)
-    alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+    alembic_cfg.set_main_option("script_location", alembic_script_location)
     command.upgrade(alembic_cfg, "head")
     logger.info("✓ Database migrations completed successfully")
 
