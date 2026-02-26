@@ -51,20 +51,29 @@ export default function MeetingRoom() {
 
   useEffect(() => {
     const initMeeting = async () => {
+      let stream: MediaStream | null = null;
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
-        streamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+          });
+          streamRef.current = stream;
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+        } else {
+          console.warn("navigator.mediaDevices not available. Are you on HTTP?");
         }
+      } catch (err) {
+        console.error("Error accessing media devices:", err);
+      }
 
+      try {
+
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = process.env.NEXT_PUBLIC_WS_URL ||
-          (typeof window !== "undefined" && window.location.hostname === "localhost"
-            ? `ws://localhost:8000/ws/${roomId}`
-            : `wss://${window.location.hostname}/ws/${roomId}`);
+          `${protocol}//${window.location.hostname}:8000/ws/${roomId}`;
 
         wsRef.current = new WebSocket(wsUrl);
 
@@ -131,13 +140,15 @@ export default function MeetingRoom() {
     };
   }, [roomId, localUserId]);
 
-  const createPeerConnection = (partnerId: string, stream: MediaStream) => {
+  const createPeerConnection = (partnerId: string, stream: MediaStream | null) => {
     const pc = new RTCPeerConnection(STUN_SERVERS);
     peersRef.current[partnerId] = pc;
 
-    stream.getTracks().forEach(track => {
-      pc.addTrack(track, stream);
-    });
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
+    }
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -225,7 +236,7 @@ export default function MeetingRoom() {
         : "grid-cols-2 md:grid-cols-3 max-w-7xl";
 
   return (
-    <div className="flex flex-col h-screen bg-black text-white">
+    <div className="flex flex-col h-[calc(100vh-74px)] bg-black text-white">
       {/* Top Bar */}
       <div className="p-4 flex justify-between items-center bg-zinc-900/80">
         <div className="flex items-center gap-2">
