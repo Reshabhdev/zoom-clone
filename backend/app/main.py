@@ -24,10 +24,26 @@ except Exception as e:
     logger.error(f"✗ Import error: {e}")
     raise
 
+from alembic.config import Config
+from alembic import command
+import os
+
 # This command creates tables only if they don't exist
 try:
     Base.metadata.create_all(bind=engine)
     logger.info("✓ Database tables created/verified")
+    
+    # Run Alembic migrations automatically
+    logger.info("Running database migrations...")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    backend_dir = os.path.dirname(os.path.dirname(current_dir))
+    alembic_ini_path = os.path.join(backend_dir, "alembic.ini")
+    
+    alembic_cfg = Config(alembic_ini_path)
+    alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+    command.upgrade(alembic_cfg, "head")
+    logger.info("✓ Database migrations completed successfully")
+
 except Exception as e:
     logger.error(f"✗ Database initialization error: {e}")
     raise
