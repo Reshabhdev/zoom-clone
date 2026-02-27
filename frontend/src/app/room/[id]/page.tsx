@@ -51,6 +51,8 @@ export default function MeetingRoom() {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const initMeeting = async () => {
       let stream: MediaStream | null = null;
       try {
@@ -59,6 +61,11 @@ export default function MeetingRoom() {
             video: true,
             audio: true
           });
+          if (!mounted) {
+            // If the component unmounted while waiting for media, stop the tracks right away
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
           streamRef.current = stream;
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = stream;
@@ -67,11 +74,14 @@ export default function MeetingRoom() {
           console.warn("navigator.mediaDevices not available. Are you on HTTP?");
         }
       } catch (err) {
-        console.error("Error accessing media devices:", err);
+        if (mounted) {
+          console.error("Error accessing media devices:", err);
+        }
       }
 
-      try {
+      if (!mounted) return;
 
+      try {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = process.env.NEXT_PUBLIC_WS_URL ||
           `${protocol}//${window.location.hostname}:8000/ws/${roomId}`;
@@ -83,6 +93,7 @@ export default function MeetingRoom() {
         };
 
         wsRef.current.onmessage = async (event) => {
+          if (!mounted) return;
           const data = JSON.parse(event.data);
 
           if (data.targetId && data.targetId !== localUserId) return;
@@ -173,13 +184,14 @@ export default function MeetingRoom() {
         };
 
       } catch (err) {
-        console.error("Error accessing media devices or connecting WebRTC:", err);
+        if (mounted) console.error("Error accessing media devices or connecting WebRTC:", err);
       }
     };
 
     initMeeting();
 
     return () => {
+      mounted = false;
       streamRef.current?.getTracks().forEach(track => track.stop());
       wsRef.current?.close();
       Object.values(peersRef.current).forEach(pc => pc.close());
@@ -232,7 +244,7 @@ export default function MeetingRoom() {
   };
 
   const toggleMic = () => {
-    if (streamRef.current) {
+    if (streamRef.current && streamRef.current.getAudioTracks().length > 0) {
       streamRef.current.getAudioTracks().forEach(track => {
         track.enabled = !isMicOn;
       });
@@ -241,7 +253,7 @@ export default function MeetingRoom() {
   };
 
   const toggleCam = () => {
-    if (streamRef.current) {
+    if (streamRef.current && streamRef.current.getVideoTracks().length > 0) {
       streamRef.current.getVideoTracks().forEach(track => {
         track.enabled = !isCamOn;
       });
@@ -338,14 +350,16 @@ export default function MeetingRoom() {
       <div className="p-8 flex justify-center items-center gap-6 bg-zinc-950 border-t border-zinc-900">
         <button
           onClick={toggleMic}
-          className={`p-4 rounded-full transition ${isMicOn ? "bg-zinc-800 hover:bg-zinc-700" : "bg-red-600 hover:bg-red-500"}`}
+          disabled={!streamRef.current || streamRef.current.getAudioTracks().length === 0}
+          className={`p-4 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed ${isMicOn ? "bg-zinc-800 hover:bg-zinc-700" : "bg-red-600 hover:bg-red-500"}`}
         >
           {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
 
         <button
           onClick={toggleCam}
-          className={`p-4 rounded-full transition ${isCamOn ? "bg-zinc-800 hover:bg-zinc-700" : "bg-red-600 hover:bg-red-500"}`}
+          disabled={!streamRef.current || streamRef.current.getVideoTracks().length === 0}
+          className={`p-4 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed ${isCamOn ? "bg-zinc-800 hover:bg-zinc-700" : "bg-red-600 hover:bg-red-500"}`}
         >
           {isCamOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>

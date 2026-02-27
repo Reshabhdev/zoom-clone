@@ -20,8 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('meetings', sa.Column('invitation_token', sa.String(), nullable=True))
-    op.create_index(op.f('ix_meetings_invitation_token'), 'meetings', ['invitation_token'], unique=True)
+    conn = op.get_bind()
+    insp = sa.inspect(conn)
+    columns = [c['name'] for c in insp.get_columns('meetings')]
+    if 'invitation_token' not in columns:
+        op.add_column('meetings', sa.Column('invitation_token', sa.String(), nullable=True))
+        op.create_index(op.f('ix_meetings_invitation_token'), 'meetings', ['invitation_token'], unique=True)
 
 
 def downgrade() -> None:
