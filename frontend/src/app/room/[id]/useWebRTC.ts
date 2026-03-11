@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 const getIceServers = (): RTCConfiguration => {
     const iceServers: RTCIceServer[] = [
         { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" }
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" },
     ];
 
     const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
@@ -15,6 +18,23 @@ const getIceServers = (): RTCConfiguration => {
             urls: turnUrl,
             username: turnUsername,
             credential: turnCredential,
+        });
+    } else {
+        // Fallback to OpenRelay Project free TURN server if no env variables are provided
+        iceServers.push({
+            urls: "turn:openrelay.metered.ca:80",
+            username: "openrelayproject",
+            credential: "openrelayproject"
+        });
+        iceServers.push({
+            urls: "turn:openrelay.metered.ca:443",
+            username: "openrelayproject",
+            credential: "openrelayproject"
+        });
+        iceServers.push({
+            urls: "turn:openrelay.metered.ca:443?transport=tcp",
+            username: "openrelayproject",
+            credential: "openrelayproject"
         });
     }
 
