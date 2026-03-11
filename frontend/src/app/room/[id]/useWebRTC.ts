@@ -83,6 +83,7 @@ export const useWebRTC = (roomId: string) => {
 
                     switch (data.type) {
                         case "join":
+                            console.log("Received JOIN from", data.senderId);
                             const pc = createPeerConnection(data.senderId, stream);
                             const offer = await pc.createOffer();
                             await pc.setLocalDescription(offer);
@@ -95,11 +96,13 @@ export const useWebRTC = (roomId: string) => {
                             break;
 
                         case "offer":
+                            console.log("Received OFFER from", data.senderId);
                             const existingPc = peersRef.current[data.senderId];
                             const collision = existingPc && existingPc.signalingState !== "stable";
                             const polite = localUserId < data.senderId;
 
                             if (collision && !polite) {
+                                console.log("Ignoring collision from", data.senderId);
                                 return;
                             }
 
@@ -115,6 +118,7 @@ export const useWebRTC = (roomId: string) => {
                             }));
 
                             if (pendingCandidates.current[data.senderId]) {
+                                console.log("Processing pending ice candidates for", data.senderId);
                                 for (const candidate of pendingCandidates.current[data.senderId]) {
                                     try {
                                         await pcReceive.addIceCandidate(new RTCIceCandidate(candidate));
@@ -127,11 +131,13 @@ export const useWebRTC = (roomId: string) => {
                             break;
 
                         case "answer":
+                            console.log("Received ANSWER from", data.senderId);
                             if (peersRef.current[data.senderId]) {
                                 const pcAns = peersRef.current[data.senderId];
                                 await pcAns.setRemoteDescription(new RTCSessionDescription(data.sdp));
 
                                 if (pendingCandidates.current[data.senderId]) {
+                                    console.log("Processing pending ice candidates for", data.senderId);
                                     for (const candidate of pendingCandidates.current[data.senderId]) {
                                         try {
                                             await pcAns.addIceCandidate(new RTCIceCandidate(candidate));
@@ -145,13 +151,20 @@ export const useWebRTC = (roomId: string) => {
                             break;
 
                         case "ice-candidate":
-                            if (peersRef.current[data.senderId] && data.candidate) {
-                                const pcIce = peersRef.current[data.senderId];
-                                if (pcIce.remoteDescription) {
-                                    try {
-                                        await pcIce.addIceCandidate(new RTCIceCandidate(data.candidate));
-                                    } catch (e) {
-                                        console.error("Error adding ice candidate", e);
+                            if (data.candidate) {
+                                if (peersRef.current[data.senderId]) {
+                                    const pcIce = peersRef.current[data.senderId];
+                                    if (pcIce.remoteDescription && pcIce.remoteDescription.type) {
+                                        try {
+                                            await pcIce.addIceCandidate(new RTCIceCandidate(data.candidate));
+                                        } catch (e) {
+                                            console.error("Error adding ice candidate", e);
+                                        }
+                                    } else {
+                                        if (!pendingCandidates.current[data.senderId]) {
+                                            pendingCandidates.current[data.senderId] = [];
+                                        }
+                                        pendingCandidates.current[data.senderId].push(data.candidate);
                                     }
                                 } else {
                                     if (!pendingCandidates.current[data.senderId]) {
