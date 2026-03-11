@@ -20,11 +20,11 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import settings
-from app.database.base import Base
+from backend.app.core.config import settings
+from backend.app.database.base import Base
 # Import all models here so Alembic can see them
-from app.models.user import User
-from app.models.meeting import Meeting
+from backend.app.models.user import User
+from backend.app.models.meeting import Meeting
 
 # Override sqlalchemy.url with the one from our settings
 db_url = settings.DATABASE_URL
