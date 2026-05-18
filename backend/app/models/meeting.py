@@ -18,3 +18,4 @@ class Meeting(Base):
     host_id = Column(Integer, ForeignKey("users.id")) 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    print("hello")
