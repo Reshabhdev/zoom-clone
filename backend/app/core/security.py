@@ -5,7 +5,7 @@ import base64
 import time
 import logging
 from typing import Optional, Dict, Any
-
+import http
 from .config import settings
 
 logger = logging.getLogger(__name__)
